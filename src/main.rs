@@ -4,9 +4,11 @@ Copyright Kevin Qiu 2023
 */
 
 extern crate getopts;
+mod ast;
+mod lexer;
 
+use ast::*;
 use getopts::Options;
-use regex::{Regex, RegexSet};
 use std::env;
 use std::fs;
 
@@ -22,38 +24,15 @@ fn print_usage(prog: &str, opts: Options) {
     println!("Source code: <https://github.com/kzqiu/crust>");
 }
 
-fn lex(file: &str) -> Vec<regex::Match> {
-    let patterns = [
-        r"\{",          // LBRACKET
-        r"\}",          // RBRACKET
-        r"\(",          // LPAREN
-        r"\)",          // RPAREN
-        r";",           // SEMICOLON
-        r"int",         // INTEGER
-        r"return",      // RETURN
-        r"[a-zA-Z]\w*", // SYMBOL
-        r"[0-9]+",      // CONST
-    ];
+fn parse(tokens: &mut Vec<String>) -> Program {
+    let prog = Program {
+        functions: Vec::new(),
+    };
 
-    let reg_set = RegexSet::new(patterns).unwrap();
-    let regexes: Vec<_> = reg_set
-        .patterns()
-        .iter()
-        .map(|pat| Regex::new(pat).unwrap())
-        .collect();
-    let mut matches: Vec<_> = reg_set
-        .matches(file)
-        .into_iter()
-        .map(|index| &regexes[index])
-        .map(|re| re.find(file).unwrap())
-        .collect();
+    let mut t_iter = tokens.iter();
 
-    matches.sort_by(|a, b| b.start().cmp(&a.start()));
-
-    matches
+    prog
 }
-
-fn parse() {}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -83,7 +62,9 @@ fn main() {
     };
 
     if let Ok(file) = fs::read_to_string(input) {
-        let matches = lex(&file);
+        let tokens: Vec<lexer::Token> = lexer::lex(&file);
+
+        dbg!(tokens);
     } else {
         println!("Please input a valid path.");
         return;
