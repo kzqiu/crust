@@ -2,7 +2,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenType {
     LBRACE,
     RBRACE,
@@ -12,7 +12,7 @@ pub enum TokenType {
     INTEGER,
     RETURN,
     IDENTIFIER,
-    CONST,
+    LITERAL,
 }
 
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl fmt::Display for Token {
                 TokenType::INTEGER => "INTEGER",
                 TokenType::RETURN => "RETURN",
                 TokenType::IDENTIFIER => "IDENTIFIER",
-                TokenType::CONST => "CONST",
+                TokenType::LITERAL => "LITERAL",
             },
             self.start,
             self.end
@@ -56,7 +56,7 @@ pub fn lex(file: &str) -> Vec<Token> {
         r"int",         // INTEGER
         r"return",      // RETURN
         r"[a-zA-Z]\w+", // IDENTIFIER
-        r"[0-9]+",      // CONST
+        r"[0-9]+",      // LITERAL
     ];
 
     let mut token_starts: HashSet<u64> = HashSet::new();
@@ -92,7 +92,7 @@ pub fn lex(file: &str) -> Vec<Token> {
             };
 
             if text.chars().all(char::is_numeric) {
-                tk.token_type = TokenType::CONST;
+                tk.token_type = TokenType::LITERAL;
             }
 
             tokens.push(tk);

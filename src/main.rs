@@ -1,13 +1,13 @@
+#![allow(dead_code)]
 /*
 C compiler built in Rust.
 Copyright Kevin Qiu 2023
 */
 
 extern crate getopts;
-mod ast;
 mod lexer;
+mod parser;
 
-use ast::*;
 use getopts::Options;
 use std::env;
 use std::fs;
@@ -22,16 +22,6 @@ fn print_usage(prog: &str, opts: Options) {
     println!("");
     println!("{}", opts.usage("C compiler in Rust"));
     println!("Source code: <https://github.com/kzqiu/crust>");
-}
-
-fn parse(tokens: &mut Vec<String>) -> Program {
-    let prog = Program {
-        functions: Vec::new(),
-    };
-
-    let mut t_iter = tokens.iter();
-
-    prog
 }
 
 fn main() {
@@ -64,7 +54,15 @@ fn main() {
     if let Ok(file) = fs::read_to_string(input) {
         let tokens: Vec<lexer::Token> = lexer::lex(&file);
 
-        dbg!(tokens);
+        for (i, t) in tokens.iter().enumerate() {
+            println!("{i}: {t}");
+        }
+
+        let program: parser::Program = parser::parse(&tokens);
+
+        println!("{}", program.functions[0].name);
+
+        // dbg!(tokens);
     } else {
         println!("Please input a valid path.");
         return;
