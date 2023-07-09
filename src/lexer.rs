@@ -1,4 +1,4 @@
-use regex::Regex;
+use fancy_regex::Regex;
 use std::collections::HashSet;
 use std::fmt;
 
@@ -48,15 +48,15 @@ impl fmt::Display for Token {
 
 pub fn lex(file: &str) -> Vec<Token> {
     let patterns = [
-        r"\{",          // LBRACE
-        r"\}",          // RBRACE
-        r"\(",          // LPAREN
-        r"\)",          // RPAREN
-        r";",           // SEMICOLON
-        r"int",         // INTEGER
-        r"return",      // RETURN
-        r"[a-zA-Z]\w+", // IDENTIFIER
-        r"[0-9]+",      // LITERAL
+        r"\{",              // LBRACE
+        r"\}",              // RBRACE
+        r"\(",              // LPAREN
+        r"\)",              // RPAREN
+        r";",               // SEMICOLON
+        r"int(?=[\s(])",    // INTEGER
+        r"return(?=[\s;])", // RETURN
+        r"[a-zA-Z]\w+",     // IDENTIFIER -> Try "([a-zA-Z])+\w*"
+        r"[0-9]+",          // LITERAL
     ];
 
     let mut token_starts: HashSet<u64> = HashSet::new();
@@ -64,9 +64,10 @@ pub fn lex(file: &str) -> Vec<Token> {
 
     for pattern in patterns.iter() {
         let re = Regex::new(&pattern).unwrap();
-        let matches: Vec<regex::Match<'_>> = re
+        let matches: Vec<fancy_regex::Match<'_>> = re
             .find_iter(file)
-            .filter(|m| !token_starts.contains(&(m.start() as u64)))
+            .filter(|m| !token_starts.contains(&(m.as_ref().unwrap().start() as u64)))
+            .map(|m| m.unwrap())
             .collect();
 
         for m in matches.iter() {
