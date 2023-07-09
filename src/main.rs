@@ -12,6 +12,7 @@ mod parser;
 use getopts::Options;
 use std::env;
 use std::fs;
+use std::process::Command;
 
 static VERSION: &'static str = "0.1.0";
 
@@ -28,7 +29,7 @@ fn print_usage(prog: &str, opts: Options) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
-    let mut output_path = String::from("crust_out.s");
+    let mut output_path = String::from("crust_out");
 
     opts.optflag("h", "help", "display help and exit");
     opts.optflag("V", "version", "display current version");
@@ -70,23 +71,22 @@ fn main() {
 
     if let Ok(file) = fs::read_to_string(input) {
         let tokens: Vec<lexer::Token> = lexer::lex(&file);
-
-        // for (i, t) in tokens.iter().enumerate() {
-        //     println!("{i}: {t}");
-        // }
-
         let program: parser::Program = parser::parse(&tokens);
-
         let asm = generator::generate(program);
 
-        // for f in program.functions.iter() {
-        //     println!("{}", f.name);
-        //     for s in f.statements.iter() {
-        //         println!("{}", s.expr.val);
-        //     }
-        // }
-
         generator::write_asm(output_path.as_str(), asm.as_str());
+
+        Command::new("zsh")
+            .arg("-c")
+            .arg(format!("gcc {}.s -o {}", output_path, output_path))
+            .output()
+            .expect("failed to execute process");
+
+        Command::new("zsh")
+            .arg("-c")
+            .arg(format!("rm {}.s", output_path))
+            .output()
+            .expect("failed to execute process");
     } else {
         println!("Please input a valid path.");
         return;

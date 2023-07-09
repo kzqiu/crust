@@ -16,5 +16,5 @@ pub fn generate(prog: Program) -> String {
 }
 
 pub fn write_asm(path: &str, text: &str) {
-    std::fs::write(path, text).unwrap();
+    std::fs::write(format!("{}.s", path), text).unwrap();
 }
