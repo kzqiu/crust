@@ -54,13 +54,11 @@ fn main() {
     if let Ok(file) = fs::read_to_string(input) {
         let tokens: Vec<lexer::Token> = lexer::lex(&file);
 
-        for (i, t) in tokens.iter().enumerate() {
-            println!("{i}: {t}");
-        }
+        // for (i, t) in tokens.iter().enumerate() {
+        //     println!("{i}: {t}");
+        // }
 
         let program: parser::Program = parser::parse(&tokens);
-
-        println!("{}", program.functions[0].name);
 
         // dbg!(tokens);
     } else {

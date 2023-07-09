@@ -42,6 +42,7 @@ fn parse_expr(tokens: &Vec<Token>, index: &mut i64) -> Expression {
 }
 
 fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
+    println!("{}", tokens[*index as usize].text);
     if !same_token_type(tokens, index, TokenType::RETURN) {
         panic!("{index}: Return statement requires \"return\".");
     }
@@ -95,6 +96,8 @@ fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
     if !same_token_type(tokens, index, TokenType::LBRACE) {
         panic!("{index}: Function declaration requires starting brace.");
     }
+
+    *index += 1;
 
     let mut statements = Vec::new();
 
