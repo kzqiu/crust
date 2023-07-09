@@ -5,6 +5,7 @@ Copyright Kevin Qiu 2023
 */
 
 extern crate getopts;
+mod generator;
 mod lexer;
 mod parser;
 
@@ -27,9 +28,16 @@ fn print_usage(prog: &str, opts: Options) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let mut opts = Options::new();
+    let mut output_path = String::from("crust_out.s");
 
     opts.optflag("h", "help", "display help and exit");
     opts.optflag("V", "version", "display current version");
+    opts.optopt(
+        "o",
+        "output",
+        "output to specific path",
+        output_path.as_str(),
+    );
 
     let matches = opts.parse(&args[1..]).unwrap();
 
@@ -42,6 +50,15 @@ fn main() {
     if matches.opt_present("V") {
         println!("crust version: {}", VERSION);
         return;
+    }
+
+    if matches.opt_present("o") {
+        if let Some(out) = matches.opt_str("o") {
+            output_path = out;
+        } else {
+            println!("Please specify an output path.");
+            return;
+        }
     }
 
     let input = if matches.free.len() == 1 {
@@ -60,7 +77,16 @@ fn main() {
 
         let program: parser::Program = parser::parse(&tokens);
 
-        // dbg!(tokens);
+        let asm = generator::generate(program);
+
+        // for f in program.functions.iter() {
+        //     println!("{}", f.name);
+        //     for s in f.statements.iter() {
+        //         println!("{}", s.expr.val);
+        //     }
+        // }
+
+        generator::write_asm(output_path.as_str(), asm.as_str());
     } else {
         println!("Please input a valid path.");
         return;

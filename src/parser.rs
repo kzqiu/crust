@@ -8,6 +8,7 @@ pub struct Function {
     pub name: String,
     // pub params: Vec<(String, TokenType)>,
     pub statements: Vec<Statement>,
+    // pub return_type:
 }
 
 pub struct Expression {
@@ -42,7 +43,6 @@ fn parse_expr(tokens: &Vec<Token>, index: &mut i64) -> Expression {
 }
 
 fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
-    println!("{}", tokens[*index as usize].text);
     if !same_token_type(tokens, index, TokenType::RETURN) {
         panic!("{index}: Return statement requires \"return\".");
     }
@@ -109,6 +109,8 @@ fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
     if *index as usize == tokens.len() {
         panic!("{index}: Function declaration requires valid ending brace.");
     }
+
+    *index += 1;
 
     Function { name, statements }
 }
