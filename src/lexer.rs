@@ -1,18 +1,20 @@
 use fancy_regex::Regex;
 use std::collections::HashSet;
-use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum TokenType {
-    LBRACE,
-    RBRACE,
-    LPAREN,
-    RPAREN,
-    SEMICOLON,
-    INTEGER,
-    RETURN,
-    IDENTIFIER,
-    LITERAL,
+    LBrace,
+    RBrace,
+    LParen,
+    RParen,
+    Semicolon,
+    Integer,
+    Return,
+    Identifier,
+    Literal,
+    Negation,
+    BitComplement,
+    LogicalNeg,
 }
 
 #[derive(Debug)]
@@ -23,40 +25,20 @@ pub struct Token {
     pub end: u64,
 }
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} => {}, Start: {}, End: {}",
-            self.text,
-            match self.token_type {
-                TokenType::LBRACE => "LBRACE",
-                TokenType::RBRACE => "RBRACE",
-                TokenType::LPAREN => "LPAREN",
-                TokenType::RPAREN => "RPAREN",
-                TokenType::SEMICOLON => "SEMICOLON",
-                TokenType::INTEGER => "INTEGER",
-                TokenType::RETURN => "RETURN",
-                TokenType::IDENTIFIER => "IDENTIFIER",
-                TokenType::LITERAL => "LITERAL",
-            },
-            self.start,
-            self.end
-        )
-    }
-}
-
 pub fn lex(file: &str) -> Vec<Token> {
     let patterns = [
-        r"\{",              // LBRACE
-        r"\}",              // RBRACE
-        r"\(",              // LPAREN
-        r"\)",              // RPAREN
-        r";",               // SEMICOLON
-        r"int(?=[\s(])",    // INTEGER
-        r"return(?=[\s;])", // RETURN
-        r"[a-zA-Z]\w+",     // IDENTIFIER -> Try "([a-zA-Z])+\w*"
-        r"[0-9]+",          // LITERAL
+        r"\{",               // LBRACE
+        r"\}",               // RBRACE
+        r"\(",               // LPAREN
+        r"\)",               // RPAREN
+        r";",                // SEMICOLON
+        r"int(?=[\s(]*)",    // INTEGER
+        r"return(?=[\s;]*)", // RETURN
+        r"[a-zA-Z]+\w+",     // IDENTIFIER -> Try "([a-zA-Z])+\w*"
+        r"[0-9]+",           // LITERAL
+        r"-",                // NEGATION
+        r"~",                // BIT_COMPLEMENT
+        r"!",                // LOGICAL_NEG
     ];
 
     let mut token_starts: HashSet<u64> = HashSet::new();
@@ -79,21 +61,24 @@ pub fn lex(file: &str) -> Vec<Token> {
             let mut tk = Token {
                 text: text.to_string(),
                 token_type: match text {
-                    "{" => TokenType::LBRACE,
-                    "}" => TokenType::RBRACE,
-                    "(" => TokenType::LPAREN,
-                    ")" => TokenType::RPAREN,
-                    ";" => TokenType::SEMICOLON,
-                    "int" => TokenType::INTEGER,
-                    "return" => TokenType::RETURN,
-                    _ => TokenType::IDENTIFIER,
+                    "{" => TokenType::LBrace,
+                    "}" => TokenType::RBrace,
+                    "(" => TokenType::LParen,
+                    ")" => TokenType::RParen,
+                    ";" => TokenType::Semicolon,
+                    "int" => TokenType::Integer,
+                    "return" => TokenType::Return,
+                    "-" => TokenType::Negation,
+                    "~" => TokenType::BitComplement,
+                    "!" => TokenType::LogicalNeg,
+                    _ => TokenType::Identifier,
                 },
                 start: m.start() as u64,
                 end: m.end() as u64,
             };
 
             if text.chars().all(char::is_numeric) {
-                tk.token_type = TokenType::LITERAL;
+                tk.token_type = TokenType::Literal;
             }
 
             tokens.push(tk);

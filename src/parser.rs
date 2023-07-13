@@ -33,7 +33,7 @@ fn same_token_type(tokens: &Vec<Token>, index: &i64, t_type: TokenType) -> bool 
 }
 
 fn parse_expr(tokens: &Vec<Token>, index: &mut i64) -> Expression {
-    if !same_token_type(tokens, index, TokenType::LITERAL) {
+    if !same_token_type(tokens, index, TokenType::Literal) {
         panic!("{index}: Requires literal value to parse expression.");
     }
 
@@ -43,13 +43,13 @@ fn parse_expr(tokens: &Vec<Token>, index: &mut i64) -> Expression {
 }
 
 fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
-    if !same_token_type(tokens, index, TokenType::RETURN) {
+    if !same_token_type(tokens, index, TokenType::Return) {
         panic!("{index}: Return statement requires \"return\".");
     }
 
     *index += 1;
 
-    if !same_token_type(tokens, index, TokenType::LITERAL) {
+    if !same_token_type(tokens, index, TokenType::Literal) {
         panic!("{index}: Return statement requires literal value.");
     }
 
@@ -57,7 +57,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
 
     *index += 1;
 
-    if !same_token_type(tokens, index, TokenType::SEMICOLON) {
+    if !same_token_type(tokens, index, TokenType::Semicolon) {
         panic!("{index}: Return statement requires semicolon.");
     }
 
@@ -65,13 +65,13 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
 }
 
 fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
-    if !same_token_type(tokens, index, TokenType::INTEGER) {
+    if !same_token_type(tokens, index, TokenType::Integer) {
         panic!("{index}: Function declaration requires valid type.");
     }
 
     *index += 1;
 
-    if !same_token_type(tokens, index, TokenType::IDENTIFIER) {
+    if !same_token_type(tokens, index, TokenType::Identifier) {
         panic!("{index}: Function declaration requires valid identifier.");
     }
 
@@ -79,7 +79,7 @@ fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
 
     *index += 1;
 
-    if !same_token_type(tokens, index, TokenType::LPAREN) {
+    if !same_token_type(tokens, index, TokenType::LParen) {
         panic!("{index}: Function declaration requires starting parenthesis.");
     }
 
@@ -87,13 +87,13 @@ fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
 
     // Iterate through parameters here
 
-    if !same_token_type(tokens, index, TokenType::RPAREN) {
+    if !same_token_type(tokens, index, TokenType::RParen) {
         panic!("{index}: Function declaration requires ending parenthesis.");
     }
 
     *index += 1;
 
-    if !same_token_type(tokens, index, TokenType::LBRACE) {
+    if !same_token_type(tokens, index, TokenType::LBrace) {
         panic!("{index}: Function declaration requires starting brace.");
     }
 
@@ -101,7 +101,7 @@ fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
 
     let mut statements = Vec::new();
 
-    while (*index as usize) < tokens.len() && !same_token_type(tokens, index, TokenType::RBRACE) {
+    while (*index as usize) < tokens.len() && !same_token_type(tokens, index, TokenType::RBrace) {
         statements.push(parse_statement(tokens, index));
         *index += 1;
     }
