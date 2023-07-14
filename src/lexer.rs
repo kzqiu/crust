@@ -12,9 +12,12 @@ pub enum TokenType {
     Return,
     Identifier,
     Literal,
-    Negation,
+    Minus,
     BitComplement,
     LogicalNeg,
+    Addition,
+    Multiplication,
+    Division,
 }
 
 #[derive(Debug)]
@@ -36,9 +39,12 @@ pub fn lex(file: &str) -> Vec<Token> {
         r"return(?=[\s;]*)", // RETURN
         r"[a-zA-Z]+\w+",     // IDENTIFIER -> Try "([a-zA-Z])+\w*"
         r"[0-9]+",           // LITERAL
-        r"-",                // NEGATION
+        r"-",                // Minus
         r"~",                // BIT_COMPLEMENT
         r"!",                // LOGICAL_NEG
+        r"\+",
+        r"\*",
+        r"/",
     ];
 
     let mut token_starts: HashSet<u64> = HashSet::new();
@@ -68,9 +74,12 @@ pub fn lex(file: &str) -> Vec<Token> {
                     ";" => TokenType::Semicolon,
                     "int" => TokenType::Integer,
                     "return" => TokenType::Return,
-                    "-" => TokenType::Negation,
+                    "-" => TokenType::Minus,
                     "~" => TokenType::BitComplement,
                     "!" => TokenType::LogicalNeg,
+                    "+" => TokenType::Addition,
+                    "*" => TokenType::Multiplication,
+                    "/" => TokenType::Division,
                     _ => TokenType::Identifier,
                 },
                 start: m.start() as u64,

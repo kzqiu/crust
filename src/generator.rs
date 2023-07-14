@@ -2,20 +2,18 @@ use crate::lexer::TokenType;
 use crate::parser::*;
 
 pub fn generate_expr(text: &mut String, expr: &Expression) {
-    if let Some(inner_val) = expr.val {
+    if let Expression::Number(inner_val) = expr {
         text.push_str(format!("movl ${}, %eax\n", inner_val).as_str());
         return;
-    }
-
-    if let Some(inner_expr) = &expr.expr {
+    } else if let Expression::UnaryOp(tk_type, inner_expr) = expr {
         generate_expr(text, inner_expr.as_ref());
-    }
 
-    match expr.unary_op.unwrap() {
-        TokenType::Negation => text.push_str("neg %eax\n"),
-        TokenType::BitComplement => text.push_str("not %eax\n"),
-        TokenType::LogicalNeg => text.push_str("cmpl $0, %eax\nmovl $0, %eax\nsete %al\n"),
-        _ => {}
+        match tk_type {
+            TokenType::Minus => text.push_str("neg %eax\n"),
+            TokenType::BitComplement => text.push_str("not %eax\n"),
+            TokenType::LogicalNeg => text.push_str("cmpl $0, %eax\nmovl $0, %eax\nsete %al\n"),
+            _ => {}
+        }
     }
 }
 

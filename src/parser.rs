@@ -13,10 +13,10 @@ pub struct Function {
     // pub return_type: TokenType,
 }
 
-pub struct Expression {
-    pub unary_op: Option<TokenType>,
-    pub expr: Option<Box<Expression>>,
-    pub val: Option<usize>,
+pub enum Expression {
+    UnaryOp(TokenType, Box<Expression>),
+    BinaryOp(TokenType, Box<Expression>, Box<Expression>),
+    Number(i32),
 }
 
 pub struct Statement {
@@ -34,19 +34,9 @@ fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
     let tk = tokens.next().unwrap();
 
     match tk.token_type {
-        TokenType::Literal => Expression {
-            unary_op: None,
-            expr: None,
-            val: Some(tk.text.parse::<usize>().unwrap()),
-        },
-        TokenType::Negation | TokenType::BitComplement | TokenType::LogicalNeg => {
-            let inner_expr = parse_expr(tokens);
-            let expr = Expression {
-                unary_op: Some(tk.token_type),
-                expr: Some(Box::new(inner_expr)),
-                val: None,
-            };
-            expr
+        TokenType::Literal => Expression::Number(tk.text.parse::<i32>().unwrap()),
+        TokenType::Minus | TokenType::BitComplement | TokenType::LogicalNeg => {
+            Expression::UnaryOp(tk.token_type, Box::new(parse_expr(tokens)))
         }
         _ => panic!(),
     }
@@ -56,7 +46,10 @@ fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
     let tk = tokens.next().unwrap();
     match tk.token_type {
         TokenType::Return => match tokens.peek().unwrap().token_type {
-            TokenType::Literal => {}
+            TokenType::Literal
+            | TokenType::Minus
+            | TokenType::BitComplement
+            | TokenType::LogicalNeg => {}
             _ => panic!(),
         },
         _ => panic!(),
@@ -73,7 +66,7 @@ fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
 }
 
 fn parse_fn(tokens: &mut Peekable<Iter<'_, Token>>) -> Function {
-    let mut name = String::new();
+    let name;
 
     // Handle return type, function identifier, and left parenthesis.
     match tokens.next().unwrap().token_type {
