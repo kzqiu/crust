@@ -10,10 +10,11 @@ pub struct Function {
     pub name: String,
     // pub params: Vec<(String, TokenType)>,
     pub statements: Vec<Statement>,
-    // pub return_type:
+    // pub return_type: TokenType,
 }
 
 pub struct Expression {
+    pub unary_op: Option<TokenType>,
     pub val: i32,
 }
 
@@ -33,8 +34,14 @@ fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
 
     match tk.token_type {
         TokenType::Literal => Expression {
+            unary_op: None,
             val: tk.text.parse::<i32>().unwrap(),
         },
+        TokenType::Negation | TokenType::BitComplement | TokenType::LogicalNeg => {
+            let mut expr = parse_expr(tokens);
+            expr.unary_op = Some(tk.token_type);
+            expr
+        }
         _ => panic!(),
     }
 }
