@@ -1,4 +1,6 @@
 use crate::lexer::{Token, TokenType};
+use std::iter::Peekable;
+use std::slice::Iter;
 
 pub struct Program {
     pub functions: Vec<Function>,
@@ -26,91 +28,76 @@ pub enum NodeType {
     Statement,
 }
 
-// pub fn tree(prog: &Program) {}
+fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
+    let tk = tokens.next().unwrap();
 
-fn same_token_type(tokens: &Vec<Token>, index: &i64, t_type: TokenType) -> bool {
-    tokens[*index as usize].token_type == t_type
-}
-
-fn parse_expr(tokens: &Vec<Token>, index: &mut i64) -> Expression {
-    if !same_token_type(tokens, index, TokenType::Literal) {
-        panic!("{index}: Requires literal value to parse expression.");
-    }
-
-    Expression {
-        val: tokens[*index as usize].text.parse::<i32>().unwrap(),
+    match tk.token_type {
+        TokenType::Literal => Expression {
+            val: tk.text.parse::<i32>().unwrap(),
+        },
+        _ => panic!(),
     }
 }
 
-fn parse_statement(tokens: &Vec<Token>, index: &mut i64) -> Statement {
-    if !same_token_type(tokens, index, TokenType::Return) {
-        panic!("{index}: Return statement requires \"return\".");
+fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
+    let tk = tokens.next().unwrap();
+    match tk.token_type {
+        TokenType::Return => match tokens.peek().unwrap().token_type {
+            TokenType::Literal => {}
+            _ => panic!(),
+        },
+        _ => panic!(),
     }
 
-    *index += 1;
+    let expr = parse_expr(tokens);
 
-    if !same_token_type(tokens, index, TokenType::Literal) {
-        panic!("{index}: Return statement requires literal value.");
-    }
-
-    let expr = parse_expr(tokens, index);
-
-    *index += 1;
-
-    if !same_token_type(tokens, index, TokenType::Semicolon) {
-        panic!("{index}: Return statement requires semicolon.");
+    match tokens.next().unwrap().token_type {
+        TokenType::Semicolon => {}
+        _ => panic!(),
     }
 
     Statement { expr }
 }
 
-fn parse_fn(tokens: &Vec<Token>, index: &mut i64) -> Function {
-    if !same_token_type(tokens, index, TokenType::Integer) {
-        panic!("{index}: Function declaration requires valid type.");
+fn parse_fn(tokens: &mut Peekable<Iter<'_, Token>>) -> Function {
+    let mut name = String::new();
+
+    // Handle return type, function identifier, and left parenthesis.
+    match tokens.next().unwrap().token_type {
+        TokenType::Integer => {
+            let tk = tokens.next().unwrap();
+            match (tk.token_type, tokens.next().unwrap().token_type) {
+                (TokenType::Identifier, TokenType::LParen) => {
+                    name = tk.text.to_string();
+                }
+                _ => panic!(),
+            }
+        }
+        _ => panic!(),
     }
 
-    *index += 1;
-
-    if !same_token_type(tokens, index, TokenType::Identifier) {
-        panic!("{index}: Function declaration requires valid identifier.");
+    // Handle function arguments, right parenthesis, and left brace.
+    loop {
+        let tk = tokens.next().unwrap();
+        match tk.token_type {
+            TokenType::RParen => match tokens.next().unwrap().token_type {
+                TokenType::LBrace => break,
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
     }
-
-    let name = tokens[*index as usize].text.to_string();
-
-    *index += 1;
-
-    if !same_token_type(tokens, index, TokenType::LParen) {
-        panic!("{index}: Function declaration requires starting parenthesis.");
-    }
-
-    *index += 1;
-
-    // Iterate through parameters here
-
-    if !same_token_type(tokens, index, TokenType::RParen) {
-        panic!("{index}: Function declaration requires ending parenthesis.");
-    }
-
-    *index += 1;
-
-    if !same_token_type(tokens, index, TokenType::LBrace) {
-        panic!("{index}: Function declaration requires starting brace.");
-    }
-
-    *index += 1;
 
     let mut statements = Vec::new();
 
-    while (*index as usize) < tokens.len() && !same_token_type(tokens, index, TokenType::RBrace) {
-        statements.push(parse_statement(tokens, index));
-        *index += 1;
+    while let Some(tk) = tokens.peek() {
+        match tk.token_type {
+            TokenType::RBrace => break,
+            _ => statements.push(parse_statement(tokens)),
+        }
     }
 
-    if *index as usize == tokens.len() {
-        panic!("{index}: Function declaration requires valid ending brace.");
-    }
-
-    *index += 1;
+    tokens.next();
 
     Function { name, statements }
 }
@@ -120,9 +107,7 @@ pub fn parse(tokens: &Vec<Token>) -> Program {
         functions: Vec::new(),
     };
 
-    let mut index: i64 = 0;
-
-    prog.functions.push(parse_fn(tokens, &mut index));
+    prog.functions.push(parse_fn(&mut tokens.iter().peekable()));
 
     prog
 }
