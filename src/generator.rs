@@ -1,5 +1,29 @@
+use crate::lexer::TokenType;
 use crate::parser::*;
-// use std::fs::File;
+
+pub fn generate_expr(text: &mut String, expr: &Expression) {
+    if let Some(inner_val) = expr.val {
+        text.push_str(format!("movl ${}, %eax\n", inner_val).as_str());
+        return;
+    }
+
+    if let Some(inner_expr) = &expr.expr {
+        generate_expr(text, inner_expr.as_ref());
+    }
+
+    match expr.unary_op.unwrap() {
+        TokenType::Negation => text.push_str("neg %eax\n"),
+        TokenType::BitComplement => text.push_str("not %eax\n"),
+        TokenType::LogicalNeg => text.push_str("cmpl $0, %eax\nmovl $0, %eax\nsete %al\n"),
+        _ => {}
+    }
+}
+
+pub fn generate_statement(text: &mut String, statement: &Statement) {
+    generate_expr(text, &statement.expr);
+
+    text.push_str("ret\n\n");
+}
 
 pub fn generate(prog: Program) -> String {
     let mut text = String::from(".globl main\n\n");
@@ -8,7 +32,7 @@ pub fn generate(prog: Program) -> String {
         text.push_str(format!("{}:\n", func.name).as_str());
 
         for statement in func.statements.iter() {
-            text.push_str(format!("movl ${}, %eax\nret\n", statement.expr.val).as_str());
+            generate_statement(&mut text, statement);
         }
     }
 

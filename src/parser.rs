@@ -15,7 +15,8 @@ pub struct Function {
 
 pub struct Expression {
     pub unary_op: Option<TokenType>,
-    pub val: i32,
+    pub expr: Option<Box<Expression>>,
+    pub val: Option<usize>,
 }
 
 pub struct Statement {
@@ -35,11 +36,16 @@ fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
     match tk.token_type {
         TokenType::Literal => Expression {
             unary_op: None,
-            val: tk.text.parse::<i32>().unwrap(),
+            expr: None,
+            val: Some(tk.text.parse::<usize>().unwrap()),
         },
         TokenType::Negation | TokenType::BitComplement | TokenType::LogicalNeg => {
-            let mut expr = parse_expr(tokens);
-            expr.unary_op = Some(tk.token_type);
+            let inner_expr = parse_expr(tokens);
+            let expr = Expression {
+                unary_op: Some(tk.token_type),
+                expr: Some(Box::new(inner_expr)),
+                val: None,
+            };
             expr
         }
         _ => panic!(),
