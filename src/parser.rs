@@ -13,10 +13,20 @@ pub struct Function {
     // pub return_type: TokenType,
 }
 
-pub enum Expression {
-    UnaryOp(TokenType, Box<Expression>),
-    BinaryOp(TokenType, Box<Expression>, Box<Expression>),
+pub enum Factor {
+    Expr(Box<Expression>),
+    UnaryOp(TokenType, Box<Factor>),
     Number(i32),
+}
+
+pub struct Term {
+    pub factor: Factor,
+    pub additional: Vec<(TokenType, Factor)>,
+}
+
+pub struct Expression {
+    pub term: Term,
+    pub additional: Vec<(TokenType, Term)>,
 }
 
 pub struct Statement {
@@ -30,16 +40,81 @@ pub enum NodeType {
     Statement,
 }
 
-fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
-    let tk = tokens.next().unwrap();
-
-    match tk.token_type {
-        TokenType::Literal => Expression::Number(tk.text.parse::<i32>().unwrap()),
-        TokenType::Minus | TokenType::BitComplement | TokenType::LogicalNeg => {
-            Expression::UnaryOp(tk.token_type, Box::new(parse_expr(tokens)))
+fn parse_factor(tokens: &mut Peekable<Iter<'_, Token>>) -> Factor {
+    let next = tokens.next().unwrap();
+    match next.token_type {
+        TokenType::LParen => {
+            let expr = parse_expr(tokens);
+            match tokens.next().unwrap().token_type {
+                TokenType::RParen => {}
+                _ => panic!(),
+            }
+            Factor::Expr(Box::new(expr))
         }
+        TokenType::Minus | TokenType::BitComplement | TokenType::LogicalNeg => {
+            let op = next.token_type;
+            let factor = parse_factor(tokens);
+            Factor::UnaryOp(op, Box::new(factor))
+        }
+        TokenType::Literal => Factor::Number(next.text.parse::<i32>().unwrap()),
         _ => panic!(),
     }
+}
+
+fn parse_term(tokens: &mut Peekable<Iter<'_, Token>>) -> Term {
+    let factor = parse_factor(tokens);
+
+    let mut term = Term {
+        factor,
+        additional: Vec::new(),
+    };
+
+    loop {
+        if let Some(next) = tokens.peek() {
+            match next.token_type {
+                TokenType::Multiplication | TokenType::Division => {
+                    let op = tokens.next().unwrap().token_type;
+                    let next_factor = parse_factor(tokens);
+                    term.additional.push((op, next_factor));
+                }
+                _ => {
+                    break;
+                }
+            }
+        } else {
+            panic!();
+        }
+    }
+
+    term
+}
+
+fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
+    let term = parse_term(tokens);
+
+    let mut expr = Expression {
+        term,
+        additional: Vec::new(),
+    };
+
+    loop {
+        if let Some(next) = tokens.peek() {
+            match &next.token_type {
+                TokenType::Minus | TokenType::Addition => {
+                    let op = tokens.next().unwrap().token_type;
+                    let next_term = parse_term(tokens);
+                    expr.additional.push((op, next_term));
+                }
+                _ => {
+                    break;
+                }
+            }
+        } else {
+            panic!();
+        }
+    }
+
+    expr
 }
 
 fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
