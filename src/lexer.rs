@@ -29,22 +29,23 @@ pub struct Token {
 }
 
 pub fn lex(file: &str) -> Vec<Token> {
+    // Somewhat inefficient, but it works well enough
     let patterns = [
-        r"\{",               // LBRACE
-        r"\}",               // RBRACE
-        r"\(",               // LPAREN
-        r"\)",               // RPAREN
-        r";",                // SEMICOLON
-        r"int(?=[\s(]+)",    // INTEGER
-        r"return(?=[\s;]+)", // RETURN
-        r"[a-zA-Z]\w*",      // IDENTIFIER -> Try "([a-zA-Z])+\w*"
-        r"[0-9]+",           // LITERAL
+        r"\{",               // LBrace
+        r"\}",               // RBrace
+        r"\(",               // LParen
+        r"\)",               // RParen
+        r";",                // Semicolon
+        r"int(?=[\s(]+)",    // Integer
+        r"return(?=[\s;]+)", // Return
+        r"[a-zA-Z]\w*",      // Identifier
+        r"[0-9]+",           // Literal
         r"-",                // Minus
-        r"~",                // BIT_COMPLEMENT
-        r"!",                // LOGICAL_NEG
-        r"\+",
-        r"\*",
-        r"/",
+        r"~",                // BitComplement
+        r"!",                // LogicalNeg
+        r"\+",               // Addition
+        r"\*",               // Multiplication
+        r"/",                // Division
     ];
 
     let mut token_starts: HashSet<u64> = HashSet::new();

@@ -76,17 +76,14 @@ fn main() {
 
         generator::write_asm(output_path.as_str(), asm.as_str());
 
-        Command::new("zsh")
+        let output = Command::new("zsh")
             .arg("-c")
             .arg(format!("gcc {}.s -o {}", output_path, output_path))
             .output()
-            .expect("failed to execute process");
+            .unwrap();
 
-        Command::new("zsh")
-            .arg("-c")
-            .arg(format!("rm {}.s", output_path))
-            .output()
-            .expect("failed to execute process");
+        let output = String::from_utf8(output.stdout).unwrap();
+        println!("{}", output);
     } else {
         println!("Please input a valid path.");
         return;

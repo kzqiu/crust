@@ -27,15 +27,15 @@ pub fn generate_term(text: &mut String, term: &Term) {
     generate_factor(text, &term.factor);
 
     for (op, factor) in term.additional.iter() {
-        text.push_str("push %eax\n");
+        text.push_str("push %rax\n");
         generate_factor(text, factor);
 
         match op {
-            TokenType::Multiplication => text.push_str("pop %ecx\nimul %ecx, %eax\n"),
+            TokenType::Multiplication => text.push_str("pop %rcx\nimul %ecx, %eax\n"),
             TokenType::Division => {
-                // e1 in eax, e2 in ecx, then sign extend.
+                // e1 in eax, e2 in ecx, then sign extend (cdq) eax into [edx:eax]
                 // stores quotient in eax, remainder in edx
-                text.push_str("mov %ecx, %eax\npop %eax\ncdq\nidivl %ecx\n");
+                text.push_str("movl %eax, %ecx\npop %rax\ncdq\nidivl %ecx\n");
             }
             _ => panic!(),
         }
@@ -47,13 +47,12 @@ pub fn generate_expr(text: &mut String, expr: &Expression) {
     generate_term(text, &expr.term);
 
     for (op, term) in expr.additional.iter() {
-        text.push_str("push %eax\n");
+        text.push_str("push %rax\n");
         generate_term(text, term);
-        text.push_str("pop %ecx\n");
 
         match op {
-            TokenType::Addition => text.push_str("addl %ecx, $eax\n"),
-            TokenType::Minus => text.push_str("subl %eax %ecx\n"),
+            TokenType::Addition => text.push_str("pop %rcx\naddl %ecx, %eax\n"),
+            TokenType::Minus => text.push_str("movl %eax, %ecx\npop %rax\nsubl %ecx, %eax\n"),
             _ => panic!(),
         }
     }

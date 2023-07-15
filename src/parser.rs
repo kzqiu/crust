@@ -124,7 +124,8 @@ fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
             TokenType::Literal
             | TokenType::Minus
             | TokenType::BitComplement
-            | TokenType::LogicalNeg => {}
+            | TokenType::LogicalNeg
+            | TokenType::LParen => {}
             _ => panic!(),
         },
         _ => panic!(),
