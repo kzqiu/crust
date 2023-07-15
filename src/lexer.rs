@@ -35,9 +35,9 @@ pub fn lex(file: &str) -> Vec<Token> {
         r"\(",               // LPAREN
         r"\)",               // RPAREN
         r";",                // SEMICOLON
-        r"int(?=[\s(]*)",    // INTEGER
-        r"return(?=[\s;]*)", // RETURN
-        r"[a-zA-Z]+\w+",     // IDENTIFIER -> Try "([a-zA-Z])+\w*"
+        r"int(?=[\s(]+)",    // INTEGER
+        r"return(?=[\s;]+)", // RETURN
+        r"[a-zA-Z]\w*",      // IDENTIFIER -> Try "([a-zA-Z])+\w*"
         r"[0-9]+",           // LITERAL
         r"-",                // Minus
         r"~",                // BIT_COMPLEMENT
