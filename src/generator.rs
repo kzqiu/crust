@@ -1,14 +1,21 @@
 use crate::lexer::TokenType;
 use crate::parser::*;
+use std::collections::HashMap;
 
-pub fn generate_factor(text: &mut String, factor: &Factor, counter: &mut u32) {
+struct StackInfo {
+    counter: u32,
+    stack_index: i32,
+    var_map: HashMap<String, i32>,
+}
+
+pub fn generate_factor(text: &mut String, factor: &Factor, stack_info: &mut StackInfo) {
     // <factor> ::= "(" <exp> ")" | <unary_op> <factor> | <int>
     match &factor {
         Factor::Expr(boxed_expr) => {
-            generate_expr(text, boxed_expr, counter);
+            generate_expr(text, boxed_expr, stack_info);
         }
         Factor::UnaryOp(op, boxed_factor) => {
-            generate_factor(text, boxed_factor, counter);
+            generate_factor(text, boxed_factor, stack_info);
             match op {
                 TokenType::Minus => text.push_str("neg %eax\n"),
                 TokenType::BitComplement => text.push_str("not %eax\n"),
@@ -22,16 +29,20 @@ pub fn generate_factor(text: &mut String, factor: &Factor, counter: &mut u32) {
         Factor::Number(val) => {
             text.push_str(format!("movl ${}, %eax\n", val).as_str());
         }
+        Factor::Identifier(name) => {
+            let offset = stack_info.var_map.get(name).unwrap();
+            text.push_str(format!("movl {}(%ebp), %eax\n", offset).as_str());
+        }
     }
 }
 
-pub fn generate_term(text: &mut String, term: &Term, counter: &mut u32) {
+pub fn generate_term(text: &mut String, term: &Term, stack_info: &mut StackInfo) {
     // <term> ::= <factor> { ("*" | "/") <factor> }
-    generate_factor(text, &term.factor, counter);
+    generate_factor(text, &term.factor, stack_info);
 
     for (op, factor) in term.additional.iter() {
         text.push_str("push %rax\n");
-        generate_factor(text, factor, counter);
+        generate_factor(text, factor, stack_info);
 
         match op {
             TokenType::Multiplication => text.push_str("pop %rcx\nimul %ecx, %eax\n"),
@@ -48,13 +59,13 @@ pub fn generate_term(text: &mut String, term: &Term, counter: &mut u32) {
     }
 }
 
-pub fn generate_add_expr(text: &mut String, add_expr: &AdditiveExpr, counter: &mut u32) {
+pub fn generate_add_expr(text: &mut String, add_expr: &AdditiveExpr, stack_info: &mut StackInfo) {
     // <add-expr> ::= <term> { ("+" | "-") <term> }
-    generate_term(text, &add_expr.term, counter);
+    generate_term(text, &add_expr.term, stack_info);
 
     for (op, expr) in add_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_term(text, expr, counter);
+        generate_term(text, expr, stack_info);
 
         match op {
             TokenType::Addition => text.push_str("pop %rcx\naddl %ecx, %eax\n"),
@@ -67,13 +78,13 @@ pub fn generate_add_expr(text: &mut String, add_expr: &AdditiveExpr, counter: &m
     }
 }
 
-pub fn generate_shift_expr(text: &mut String, shift_expr: &ShiftExpr, counter: &mut u32) {
+pub fn generate_shift_expr(text: &mut String, shift_expr: &ShiftExpr, stack_info: &mut StackInfo) {
     // <shift-expr> ::= <add-expr> { ("<<" | ">>") <add-expr> }
-    generate_add_expr(text, &shift_expr.add_expr, counter);
+    generate_add_expr(text, &shift_expr.add_expr, stack_info);
 
     for (op, expr) in shift_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_add_expr(text, expr, counter);
+        generate_add_expr(text, expr, stack_info);
         text.push_str("movl %eax, %ecx\npop %rax\n");
 
         match op {
@@ -87,13 +98,13 @@ pub fn generate_shift_expr(text: &mut String, shift_expr: &ShiftExpr, counter: &
     }
 }
 
-pub fn generate_rel_expr(text: &mut String, rel_expr: &RelationalExpr, counter: &mut u32) {
+pub fn generate_rel_expr(text: &mut String, rel_expr: &RelationalExpr, stack_info: &mut StackInfo) {
     // <rel-expr> ::= <shift-expr> { ("<" | ">" | "<=" | ">=") <shift-expr> }
-    generate_shift_expr(text, &rel_expr.shift_expr, counter);
+    generate_shift_expr(text, &rel_expr.shift_expr, stack_info);
 
     for (op, expr) in rel_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_shift_expr(text, expr, counter);
+        generate_shift_expr(text, expr, stack_info);
         text.push_str("pop %rcx\ncmpl %eax, %ecx\nmovl $0, %eax\n");
 
         match op {
@@ -109,13 +120,13 @@ pub fn generate_rel_expr(text: &mut String, rel_expr: &RelationalExpr, counter: 
     }
 }
 
-pub fn generate_eq_expr(text: &mut String, eq_expr: &EqualityExpr, counter: &mut u32) {
+pub fn generate_eq_expr(text: &mut String, eq_expr: &EqualityExpr, stack_info: &mut StackInfo) {
     // <eq-expr> ::= <rel-expr> { ("!=" | "==") <rel-expr> }
-    generate_rel_expr(text, &eq_expr.rel_expr, counter);
+    generate_rel_expr(text, &eq_expr.rel_expr, stack_info);
 
     for (op, expr) in eq_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_rel_expr(text, expr, counter);
+        generate_rel_expr(text, expr, stack_info);
         text.push_str("pop %rcx\ncmpl %eax, %ecx\nmovl $0, %eax\n");
 
         match op {
@@ -129,13 +140,17 @@ pub fn generate_eq_expr(text: &mut String, eq_expr: &EqualityExpr, counter: &mut
     }
 }
 
-pub fn generate_bit_and_expr(text: &mut String, bit_and_expr: &BitAndExpr, counter: &mut u32) {
+pub fn generate_bit_and_expr(
+    text: &mut String,
+    bit_and_expr: &BitAndExpr,
+    stack_info: &mut StackInfo,
+) {
     // <bit-and-expr> ::= <eq-expr> { "&" <eq-expr> }
-    generate_eq_expr(text, &bit_and_expr.eq_expr, counter);
+    generate_eq_expr(text, &bit_and_expr.eq_expr, stack_info);
 
     for (op, expr) in bit_and_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_eq_expr(text, expr, counter);
+        generate_eq_expr(text, expr, stack_info);
         text.push_str("pop %rcx\n");
 
         match op {
@@ -148,13 +163,17 @@ pub fn generate_bit_and_expr(text: &mut String, bit_and_expr: &BitAndExpr, count
     }
 }
 
-pub fn generate_bit_xor_expr(text: &mut String, bit_xor_expr: &BitXOrExpr, counter: &mut u32) {
+pub fn generate_bit_xor_expr(
+    text: &mut String,
+    bit_xor_expr: &BitXOrExpr,
+    stack_info: &mut StackInfo,
+) {
     // <bit-xor-expr> ::= <bit-and-expr> { "^" <bit-and-expr> }
-    generate_bit_and_expr(text, &bit_xor_expr.bit_and_expr, counter);
+    generate_bit_and_expr(text, &bit_xor_expr.bit_and_expr, stack_info);
 
     for (op, expr) in bit_xor_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_bit_and_expr(text, expr, counter);
+        generate_bit_and_expr(text, expr, stack_info);
         text.push_str("pop %rcx\n");
 
         match op {
@@ -167,13 +186,17 @@ pub fn generate_bit_xor_expr(text: &mut String, bit_xor_expr: &BitXOrExpr, count
     }
 }
 
-pub fn generate_bit_or_expr(text: &mut String, bit_or_expr: &BitOrExpr, counter: &mut u32) {
+pub fn generate_bit_or_expr(
+    text: &mut String,
+    bit_or_expr: &BitOrExpr,
+    stack_info: &mut StackInfo,
+) {
     // <bit-or-expr> ::= <bit-xor-expr> { "|" <bit-xor-expr> }
-    generate_bit_xor_expr(text, &bit_or_expr.bit_xor_expr, counter);
+    generate_bit_xor_expr(text, &bit_or_expr.bit_xor_expr, stack_info);
 
     for (op, expr) in bit_or_expr.additional.iter() {
         text.push_str("push %rax\n");
-        generate_bit_xor_expr(text, expr, counter);
+        generate_bit_xor_expr(text, expr, stack_info);
         text.push_str("pop %rcx\n");
 
         match op {
@@ -186,29 +209,30 @@ pub fn generate_bit_or_expr(text: &mut String, bit_or_expr: &BitOrExpr, counter:
     }
 }
 
-pub fn generate_log_and_expr(text: &mut String, log_and_expr: &LogicalAndExpr, counter: &mut u32) {
+pub fn generate_log_and_expr(
+    text: &mut String,
+    log_and_expr: &LogicalAndExpr,
+    stack_info: &mut StackInfo,
+) {
     // <log-and-expr> ::= <bit-or-expr> { "&&" <bit-or-expr> }
-    generate_bit_or_expr(text, &log_and_expr.bit_or_expr, counter);
+    generate_bit_or_expr(text, &log_and_expr.bit_or_expr, stack_info);
 
     for (op, expr) in log_and_expr.additional.iter() {
         match op {
             TokenType::And => {
+                let c = stack_info.counter;
                 text.push_str(
                     format!(
                         "cmpl $0, %eax\njne _clause{}\njmp _end{}\n_clause{}:\n",
-                        counter, counter, counter
+                        c, c, c
                     )
                     .as_str(),
                 );
-                generate_bit_or_expr(text, expr, counter);
+                generate_bit_or_expr(text, expr, stack_info);
                 text.push_str(
-                    format!(
-                        "cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n",
-                        counter
-                    )
-                    .as_str(),
+                    format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str(),
                 );
-                *counter += 1;
+                stack_info.counter += 1;
             }
             _ => {
                 dbg!(op);
@@ -218,29 +242,30 @@ pub fn generate_log_and_expr(text: &mut String, log_and_expr: &LogicalAndExpr, c
     }
 }
 
-pub fn generate_expr(text: &mut String, expr: &Expression, counter: &mut u32) {
-    // <exp> ::= <logical-or-expr> { "||" <logical-or-expr> }
-    generate_log_and_expr(text, &expr.log_and_expr, counter);
+pub fn generate_log_or_expr(
+    text: &mut String,
+    log_or_expr: &LogicalOrExpr,
+    stack_info: &mut StackInfo,
+) {
+    // <logical-or-expr> ::= <logical-and-expr> { "||" <logical-and-expr> }
+    generate_log_and_expr(text, &log_or_expr.log_and_expr, stack_info);
 
-    for (op, expr) in expr.additional.iter() {
+    for (op, expr) in log_or_expr.additional.iter() {
         match op {
             TokenType::Or => {
+                let c = stack_info.counter;
                 text.push_str(
                     format!(
                         "cmpl $0, %eax\nje _clause{}\nmovl $1, %eax\njmp _end{}\n_clause{}:\n",
-                        counter, counter, counter
+                        c, c, c
                     )
                     .as_str(),
                 );
-                generate_log_and_expr(text, expr, counter);
+                generate_log_and_expr(text, expr, stack_info);
                 text.push_str(
-                    format!(
-                        "cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n",
-                        counter
-                    )
-                    .as_str(),
+                    format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str(),
                 );
-                *counter += 1;
+                stack_info.counter += 1;
             }
             _ => {
                 dbg!(op);
@@ -250,22 +275,75 @@ pub fn generate_expr(text: &mut String, expr: &Expression, counter: &mut u32) {
     }
 }
 
-pub fn generate_statement(text: &mut String, statement: &Statement, counter: &mut u32) {
-    // <function> :: "int" <id> "(" ")" "{" <statement> "}"
-    generate_expr(text, &statement.expr, counter);
-    text.push_str("ret\n\n");
+pub fn generate_expr(text: &mut String, expr: &Expression, stack_info: &mut StackInfo) {
+    match expr {
+        Expression::Assign(name, inner_expr) => {
+            generate_expr(text, inner_expr, stack_info);
+            let offset = stack_info.var_map.get(name).unwrap();
+            text.push_str(format!("movl %eax, {}(%ebp)", offset).as_str());
+        }
+        Expression::Else(log_or_expr) => {
+            generate_log_or_expr(text, log_or_expr, stack_info);
+        }
+    }
+}
+
+pub fn generate_statement(text: &mut String, statement: &Statement, stack_info: &mut StackInfo) {
+    // <function> :: "int" <id> "(" ")" "{" { <statement> } "}"
+    match statement {
+        Statement::Declare(name, opt_expr) => {
+            if let Some(_) = stack_info.var_map.get(name) {
+                panic!("Variable \"{}\" already declared in this scope.", name);
+            }
+
+            if let Some(inner_expr) = opt_expr {
+                generate_expr(text, inner_expr, stack_info);
+            } else {
+                // set to 0
+                text.push_str("movl $0, %eax\n");
+            }
+
+            text.push_str("pushl %rax\n");
+            stack_info
+                .var_map
+                .insert(name.to_string(), stack_info.stack_index);
+            stack_info.stack_index -= 8;
+        }
+        Statement::Expr(expr) => {
+            generate_expr(text, expr, stack_info);
+        }
+        Statement::Return(expr) => {
+            generate_expr(text, expr, stack_info);
+            text.push_str("ret\n\n");
+        }
+    }
+    text.push_str("movl %ebp, %esp\npop %rbp\nret\n\n");
 }
 
 pub fn generate(prog: Program) -> String {
     // <program> ::= <function>
     let mut text = String::from(".globl main\n\n");
-    let mut counter: u32 = 0;
+    let mut stack_info = StackInfo {
+        var_map: HashMap::new(),
+        stack_index: 0,
+        counter: 0,
+    };
 
     for func in prog.functions.iter() {
-        text.push_str(format!("{}:\n", func.name).as_str());
+        text.push_str(format!("{}:\npush %rbp\nmovl %esp, %ebp\n", func.name).as_str());
+
+        let mut has_ret: bool = false;
 
         for statement in func.statements.iter() {
-            generate_statement(&mut text, statement, &mut counter);
+            if let Statement::Return(_) = statement {
+                has_ret = true;
+            }
+
+            generate_statement(&mut text, statement, &mut stack_info);
+        }
+
+        if !has_ret {
+            text.push_str("movl $0, %eax\nret\n")
         }
     }
 

@@ -8,8 +8,8 @@ pub struct Program {
 
 pub struct Function {
     pub name: String,
-    // pub params: Vec<(String, TokenType)>,
     pub statements: Vec<Statement>,
+    // pub params: Vec<(String, TokenType)>,
     // pub return_type: TokenType,
 }
 
@@ -18,6 +18,7 @@ pub enum Factor {
     Expr(Box<Expression>),
     UnaryOp(TokenType, Box<Factor>),
     Number(i32),
+    Identifier(String),
 }
 
 pub struct Term {
@@ -66,13 +67,20 @@ pub struct LogicalAndExpr {
 }
 
 // Lowest Precedence for Binary Operators
-pub struct Expression {
+pub struct LogicalOrExpr {
     pub log_and_expr: LogicalAndExpr,
     pub additional: Vec<(TokenType, LogicalAndExpr)>,
 }
 
-pub struct Statement {
-    pub expr: Expression,
+pub enum Expression {
+    Assign(String, Box<Expression>),
+    Else(LogicalOrExpr),
+}
+
+pub enum Statement {
+    Return(Expression),
+    Declare(String, Option<Expression>),
+    Expr(Expression),
 }
 
 pub enum NodeType {
@@ -99,6 +107,7 @@ fn parse_factor(tokens: &mut Peekable<Iter<'_, Token>>) -> Factor {
             Factor::UnaryOp(op, Box::new(factor))
         }
         TokenType::Literal => Factor::Number(next.text.parse::<i32>().unwrap()),
+        TokenType::Identifier => Factor::Identifier(next.text),
         _ => panic!(),
     }
 }
@@ -358,10 +367,10 @@ fn parse_log_and_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalAndExpr 
     expr
 }
 
-fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
+fn parse_log_or_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalOrExpr {
     let log_and_expr = parse_log_and_expr(tokens);
 
-    let mut expr = Expression {
+    let mut expr = LogicalOrExpr {
         log_and_expr,
         additional: Vec::new(),
     };
@@ -386,28 +395,58 @@ fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
     expr
 }
 
-fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
+fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
     let tk = tokens.next().unwrap();
     match tk.token_type {
-        TokenType::Return => match tokens.peek().unwrap().token_type {
-            TokenType::Literal
-            | TokenType::Minus
-            | TokenType::BitComplement
-            | TokenType::LogicalNeg
-            | TokenType::LParen => {}
+        TokenType::Identifier => match tokens.next().unwrap().token_type {
+            TokenType::Assign => Expression::Assign(tk.text, Box::new(parse_expr(tokens))),
             _ => panic!(),
         },
+        _ => Expression::Else(parse_log_or_expr(tokens)),
+    }
+}
+
+fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
+    let tk = tokens.next().unwrap();
+    let mut state;
+    match tk.token_type {
+        TokenType::Return => {
+            match tokens.peek().unwrap().token_type {
+                // Return case
+                TokenType::Literal
+                | TokenType::Minus
+                | TokenType::BitComplement
+                | TokenType::LogicalNeg
+                | TokenType::LParen => state = Statement::Return(parse_expr(tokens)),
+                _ => panic!(),
+            }
+        }
+        TokenType::Integer => match tokens.peek().unwrap().token_type {
+            // Declare case
+            TokenType::Identifier => {
+                state = Statement::Declare(
+                    tokens.next().unwrap().text,
+                    match tokens.peek().unwrap().token_type {
+                        TokenType::Semicolon => None,
+                        _ => Some(parse_expr(tokens)),
+                    },
+                );
+            }
+            _ => panic!(),
+        },
+        TokenType::Identifier => {
+            // Expression case
+            Statement::Expr(parse_expr(tokens));
+        }
         _ => panic!(),
     }
-
-    let expr = parse_expr(tokens);
 
     match tokens.next().unwrap().token_type {
         TokenType::Semicolon => {}
         _ => panic!(),
     }
 
-    Statement { expr }
+    state
 }
 
 fn parse_fn(tokens: &mut Peekable<Iter<'_, Token>>) -> Function {
