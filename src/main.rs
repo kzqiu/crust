@@ -12,6 +12,7 @@ mod parser;
 use getopts::Options;
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 static VERSION: &'static str = "0.1.0";
@@ -53,14 +54,14 @@ fn main() {
         return;
     }
 
-    if matches.opt_present("o") {
-        if let Some(out) = matches.opt_str("o") {
-            output_path = out;
-        } else {
-            println!("Please specify an output path.");
-            return;
-        }
-    }
+    // if matches.opt_present("o") {
+    //     if let Some(out) = matches.opt_str("o") {
+    //         output_path = out;
+    //     } else {
+    //         println!("Please specify an output path.");
+    //         return;
+    //     }
+    // }
 
     let input = if matches.free.len() == 1 {
         matches.free[0].clone()
@@ -69,8 +70,12 @@ fn main() {
         return;
     };
 
+    // let stem = Path::new(&input).file_stem();
+    // output_path = stem.unwrap().to_str().unwrap().to_string();
+
     if let Ok(file) = fs::read_to_string(input) {
         let tokens: Vec<lexer::Token> = lexer::lex(&file);
+        // dbg!(tokens);
         let program: parser::Program = parser::parse(&tokens);
         let asm = generator::generate(program);
 

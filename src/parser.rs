@@ -198,7 +198,10 @@ fn parse_rel_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> RelationalExpr {
     loop {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
-                TokenType::Equal | TokenType::NotEqual => {
+                TokenType::LessThan
+                | TokenType::LessThanEqual
+                | TokenType::GreaterThan
+                | TokenType::GreaterThanEqual => {
                     let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_shift_expr(tokens);
                     expr.additional.push((op, next_expr));
@@ -226,10 +229,7 @@ fn parse_eq_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> EqualityExpr {
     loop {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
-                TokenType::LessThan
-                | TokenType::LessThanEqual
-                | TokenType::GreaterThan
-                | TokenType::GreaterThanEqual => {
+                TokenType::Equal | TokenType::NotEqual => {
                     let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_rel_expr(tokens);
                     expr.additional.push((op, next_expr));
@@ -341,7 +341,7 @@ fn parse_log_and_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalAndExpr 
     loop {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
-                TokenType::Or => {
+                TokenType::And => {
                     let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_bit_or_expr(tokens);
                     expr.additional.push((op, next_expr));

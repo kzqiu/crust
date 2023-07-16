@@ -13,7 +13,10 @@ pub fn generate_factor(text: &mut String, factor: &Factor, counter: &mut u32) {
                 TokenType::Minus => text.push_str("neg %eax\n"),
                 TokenType::BitComplement => text.push_str("not %eax\n"),
                 TokenType::LogicalNeg => text.push_str("cmpl $0, %eax\nmovl $0, %eax\nsete %al\n"),
-                _ => panic!(),
+                _ => {
+                    dbg!(op);
+                    panic!();
+                }
             }
         }
         Factor::Number(val) => {
@@ -37,7 +40,10 @@ pub fn generate_term(text: &mut String, term: &Term, counter: &mut u32) {
                 // stores quotient in eax, remainder in edx
                 text.push_str("movl %eax, %ecx\npop %rax\ncdq\nidivl %ecx\n");
             }
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -53,7 +59,10 @@ pub fn generate_add_expr(text: &mut String, add_expr: &AdditiveExpr, counter: &m
         match op {
             TokenType::Addition => text.push_str("pop %rcx\naddl %ecx, %eax\n"),
             TokenType::Minus => text.push_str("movl %eax, %ecx\npop %rax\nsubl %ecx, %eax\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -70,7 +79,10 @@ pub fn generate_shift_expr(text: &mut String, shift_expr: &ShiftExpr, counter: &
         match op {
             TokenType::LBitShift => text.push_str("sal %ecx, %eax\n"),
             TokenType::RBitShift => text.push_str("sar %ecx, %eax\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -89,7 +101,10 @@ pub fn generate_rel_expr(text: &mut String, rel_expr: &RelationalExpr, counter: 
             TokenType::LessThanEqual => text.push_str("setle %al\n"),
             TokenType::GreaterThan => text.push_str("setg %al\n"),
             TokenType::GreaterThanEqual => text.push_str("setge %al\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -106,7 +121,10 @@ pub fn generate_eq_expr(text: &mut String, eq_expr: &EqualityExpr, counter: &mut
         match op {
             TokenType::Equal => text.push_str("sete %al\n"),
             TokenType::NotEqual => text.push_str("setne %al\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -122,7 +140,10 @@ pub fn generate_bit_and_expr(text: &mut String, bit_and_expr: &BitAndExpr, count
 
         match op {
             TokenType::BitAnd => text.push_str("and %ecx, %eax\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -138,7 +159,10 @@ pub fn generate_bit_xor_expr(text: &mut String, bit_xor_expr: &BitXOrExpr, count
 
         match op {
             TokenType::BitXOr => text.push_str("xor %ecx, %eax\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -154,12 +178,14 @@ pub fn generate_bit_or_expr(text: &mut String, bit_or_expr: &BitOrExpr, counter:
 
         match op {
             TokenType::BitOr => text.push_str("or %ecx, %eax\n"),
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
 
-// TODO
 pub fn generate_log_and_expr(text: &mut String, log_and_expr: &LogicalAndExpr, counter: &mut u32) {
     // <log-and-expr> ::= <bit-or-expr> { "&&" <bit-or-expr> }
     generate_bit_or_expr(text, &log_and_expr.bit_or_expr, counter);
@@ -169,7 +195,7 @@ pub fn generate_log_and_expr(text: &mut String, log_and_expr: &LogicalAndExpr, c
             TokenType::And => {
                 text.push_str(
                     format!(
-                        "cmpl $0, %eax\njne _clause{}\njmp _end{}\n_clause{}\n",
+                        "cmpl $0, %eax\njne _clause{}\njmp _end{}\n_clause{}:\n",
                         counter, counter, counter
                     )
                     .as_str(),
@@ -184,7 +210,10 @@ pub fn generate_log_and_expr(text: &mut String, log_and_expr: &LogicalAndExpr, c
                 );
                 *counter += 1;
             }
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
@@ -213,7 +242,10 @@ pub fn generate_expr(text: &mut String, expr: &Expression, counter: &mut u32) {
                 );
                 *counter += 1;
             }
-            _ => panic!(),
+            _ => {
+                dbg!(op);
+                panic!();
+            }
         }
     }
 }
