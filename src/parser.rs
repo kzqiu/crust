@@ -8,7 +8,7 @@ pub struct Program {
 
 pub struct Function {
     pub name: String,
-    pub statements: Vec<Statement>,
+    pub blocks: Vec<BlockItem>,
     // pub params: Vec<(String, TokenType)>,
     // pub return_type: TokenType,
 }
@@ -48,39 +48,54 @@ pub struct EqualityExpr {
 
 pub struct BitAndExpr {
     pub eq_expr: EqualityExpr,
-    pub additional: Vec<(TokenType, EqualityExpr)>,
+    pub additional: Vec<EqualityExpr>,
 }
 
 pub struct BitXOrExpr {
     pub bit_and_expr: BitAndExpr,
-    pub additional: Vec<(TokenType, BitAndExpr)>,
+    pub additional: Vec<BitAndExpr>,
 }
 
 pub struct BitOrExpr {
     pub bit_xor_expr: BitXOrExpr,
-    pub additional: Vec<(TokenType, BitXOrExpr)>,
+    pub additional: Vec<BitXOrExpr>,
 }
 
 pub struct LogicalAndExpr {
     pub bit_or_expr: BitOrExpr,
-    pub additional: Vec<(TokenType, BitOrExpr)>,
+    pub additional: Vec<BitOrExpr>,
 }
 
 // Lowest Precedence for Binary Operators
 pub struct LogicalOrExpr {
     pub log_and_expr: LogicalAndExpr,
-    pub additional: Vec<(TokenType, LogicalAndExpr)>,
+    pub additional: Vec<LogicalAndExpr>,
+}
+
+pub struct ConditionalExpr {
+    pub log_or_expr: LogicalOrExpr,
+    pub additional: Option<(Box<Expression>, Box<ConditionalExpr>)>,
 }
 
 pub enum Expression {
     Assign(String, Box<Expression>),
-    Else(LogicalOrExpr),
+    Conditional(ConditionalExpr),
 }
 
 pub enum Statement {
     Return(Expression),
-    Declare(String, Option<Expression>),
     Expr(Expression),
+    If(Expression, Box<Statement>, Option<Box<Statement>>),
+}
+
+pub struct Declaration {
+    pub identifier: String,
+    pub expr: Option<Expression>,
+}
+
+pub enum BlockItem {
+    Statement(Statement),
+    Declaration(Declaration),
 }
 
 pub enum NodeType {
@@ -107,8 +122,11 @@ fn parse_factor(tokens: &mut Peekable<Iter<'_, Token>>) -> Factor {
             Factor::UnaryOp(op, Box::new(factor))
         }
         TokenType::Literal => Factor::Number(next.text.parse::<i32>().unwrap()),
-        TokenType::Identifier => Factor::Identifier(next.text),
-        _ => panic!(),
+        TokenType::Identifier => Factor::Identifier(next.text.to_string()),
+        _ => {
+            dbg!(next);
+            panic!();
+        }
     }
 }
 
@@ -267,9 +285,8 @@ fn parse_bit_and_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> BitAndExpr {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
                 TokenType::BitAnd => {
-                    let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_eq_expr(tokens);
-                    expr.additional.push((op, next_expr));
+                    expr.additional.push(next_expr);
                 }
                 _ => {
                     break;
@@ -295,9 +312,8 @@ fn parse_bit_xor_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> BitXOrExpr {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
                 TokenType::BitXOr => {
-                    let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_bit_and_expr(tokens);
-                    expr.additional.push((op, next_expr));
+                    expr.additional.push(next_expr);
                 }
                 _ => {
                     break;
@@ -323,9 +339,8 @@ fn parse_bit_or_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> BitOrExpr {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
                 TokenType::BitOr => {
-                    let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_bit_xor_expr(tokens);
-                    expr.additional.push((op, next_expr));
+                    expr.additional.push(next_expr);
                 }
                 _ => {
                     break;
@@ -351,9 +366,8 @@ fn parse_log_and_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalAndExpr 
         if let Some(next) = tokens.peek() {
             match &next.token_type {
                 TokenType::And => {
-                    let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_bit_or_expr(tokens);
-                    expr.additional.push((op, next_expr));
+                    expr.additional.push(next_expr);
                 }
                 _ => {
                     break;
@@ -379,9 +393,8 @@ fn parse_log_or_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalOrExpr {
         if let Some(next) = tokens.peek() {
             match &next.token_type {
                 TokenType::Or => {
-                    let op = tokens.next().unwrap().token_type;
                     let next_expr = parse_log_and_expr(tokens);
-                    expr.additional.push((op, next_expr));
+                    expr.additional.push(next_expr);
                 }
                 _ => {
                     break;
@@ -395,58 +408,143 @@ fn parse_log_or_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> LogicalOrExpr {
     expr
 }
 
-fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
-    let tk = tokens.next().unwrap();
-    match tk.token_type {
-        TokenType::Identifier => match tokens.next().unwrap().token_type {
-            TokenType::Assign => Expression::Assign(tk.text, Box::new(parse_expr(tokens))),
-            _ => panic!(),
+fn parse_conditional_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> ConditionalExpr {
+    ConditionalExpr {
+        log_or_expr: parse_log_or_expr(tokens),
+        additional: match tokens.peek().unwrap().token_type {
+            TokenType::QuestionMark => {
+                tokens.next();
+                let expr = parse_expr(tokens);
+
+                match tokens.next().unwrap().token_type {
+                    TokenType::Colon => {}
+                    _ => panic!(),
+                }
+
+                let cond_expr = parse_conditional_expr(tokens);
+
+                Some((Box::new(expr), Box::new(cond_expr)))
+            }
+            _ => None,
         },
-        _ => Expression::Else(parse_log_or_expr(tokens)),
+    }
+}
+
+fn parse_expr(tokens: &mut Peekable<Iter<'_, Token>>) -> Expression {
+    // let tk = tokens.next().unwrap();
+    let mut iter_cpy = tokens.clone();
+    let first_tk = iter_cpy.next().unwrap();
+    // dbg!(first_tk);
+    // dbg!(iter_cpy.peek().unwrap());
+    match (first_tk.token_type, iter_cpy.peek().unwrap().token_type) {
+        (TokenType::Identifier, TokenType::Assign) => {
+            tokens.next();
+            tokens.next();
+            Expression::Assign(first_tk.text.to_string(), Box::new(parse_expr(tokens)))
+        }
+        _ => Expression::Conditional(parse_conditional_expr(tokens)),
     }
 }
 
 fn parse_statement(tokens: &mut Peekable<Iter<'_, Token>>) -> Statement {
-    let tk = tokens.next().unwrap();
-    let mut state;
+    let tk = tokens.peek().unwrap();
+    let statement;
     match tk.token_type {
         TokenType::Return => {
+            tokens.next(); // remove return token
             match tokens.peek().unwrap().token_type {
                 // Return case
                 TokenType::Literal
                 | TokenType::Minus
                 | TokenType::BitComplement
                 | TokenType::LogicalNeg
-                | TokenType::LParen => state = Statement::Return(parse_expr(tokens)),
+                | TokenType::Identifier
+                | TokenType::LParen => statement = Statement::Return(parse_expr(tokens)),
+                _ => {
+                    dbg!(tokens.peek().unwrap());
+                    panic!();
+                }
+            }
+            match tokens.next().unwrap().token_type {
+                TokenType::Semicolon => {}
                 _ => panic!(),
             }
         }
-        TokenType::Integer => match tokens.peek().unwrap().token_type {
-            // Declare case
-            TokenType::Identifier => {
-                state = Statement::Declare(
-                    tokens.next().unwrap().text,
-                    match tokens.peek().unwrap().token_type {
-                        TokenType::Semicolon => None,
-                        _ => Some(parse_expr(tokens)),
-                    },
-                );
-            }
-            _ => panic!(),
-        },
         TokenType::Identifier => {
             // Expression case
-            Statement::Expr(parse_expr(tokens));
+            statement = Statement::Expr(parse_expr(tokens));
+            match tokens.next().unwrap().token_type {
+                TokenType::Semicolon => {}
+                _ => panic!(),
+            }
         }
-        _ => panic!(),
+        TokenType::If => {
+            tokens.next();
+            match tokens.next().unwrap().token_type {
+                TokenType::LParen => {}
+                _ => panic!(),
+            }
+
+            let expr = parse_expr(tokens);
+
+            match tokens.next().unwrap().token_type {
+                TokenType::RParen => {}
+                _ => panic!(),
+            }
+
+            let inner_statement = parse_statement(tokens);
+
+            let else_statement = match tokens.peek().unwrap().token_type {
+                TokenType::Else => {
+                    tokens.next();
+                    Some(parse_statement(tokens))
+                }
+                _ => None,
+            };
+
+            statement = Statement::If(
+                expr,
+                Box::new(inner_statement),
+                match else_statement {
+                    Some(s) => Some(Box::new(s)),
+                    None => None,
+                },
+            )
+        }
+        _ => {
+            dbg!(tk);
+            panic!();
+        }
     }
+
+    statement
+}
+
+fn parse_declaration(tokens: &mut Peekable<Iter<'_, Token>>) -> Declaration {
+    tokens.next(); // get rid of type
+    let identifier = tokens.next().unwrap().text.as_str();
+    tokens.next(); // get rid of equals
+    let decl = Declaration {
+        identifier: String::from(identifier),
+        expr: match tokens.peek().unwrap().token_type {
+            TokenType::Semicolon => None,
+            _ => Some(parse_expr(tokens)),
+        },
+    };
 
     match tokens.next().unwrap().token_type {
         TokenType::Semicolon => {}
         _ => panic!(),
     }
 
-    state
+    decl
+}
+
+fn parse_block(tokens: &mut Peekable<Iter<'_, Token>>) -> BlockItem {
+    match tokens.peek().unwrap().token_type {
+        TokenType::Integer => BlockItem::Declaration(parse_declaration(tokens)),
+        _ => BlockItem::Statement(parse_statement(tokens)),
+    }
 }
 
 fn parse_fn(tokens: &mut Peekable<Iter<'_, Token>>) -> Function {
@@ -478,18 +576,18 @@ fn parse_fn(tokens: &mut Peekable<Iter<'_, Token>>) -> Function {
         }
     }
 
-    let mut statements = Vec::new();
+    let mut blocks = Vec::new();
 
     while let Some(tk) = tokens.peek() {
         match tk.token_type {
             TokenType::RBrace => break,
-            _ => statements.push(parse_statement(tokens)),
+            _ => blocks.push(parse_block(tokens)),
         }
     }
 
     tokens.next();
 
-    Function { name, statements }
+    Function { name, blocks }
 }
 
 pub fn parse(tokens: &Vec<Token>) -> Program {

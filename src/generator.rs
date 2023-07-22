@@ -2,7 +2,7 @@ use crate::lexer::TokenType;
 use crate::parser::*;
 use std::collections::HashMap;
 
-struct StackInfo {
+pub struct StackInfo {
     counter: u32,
     stack_index: i32,
     var_map: HashMap<String, i32>,
@@ -148,18 +148,10 @@ pub fn generate_bit_and_expr(
     // <bit-and-expr> ::= <eq-expr> { "&" <eq-expr> }
     generate_eq_expr(text, &bit_and_expr.eq_expr, stack_info);
 
-    for (op, expr) in bit_and_expr.additional.iter() {
+    for expr in bit_and_expr.additional.iter() {
         text.push_str("push %rax\n");
         generate_eq_expr(text, expr, stack_info);
-        text.push_str("pop %rcx\n");
-
-        match op {
-            TokenType::BitAnd => text.push_str("and %ecx, %eax\n"),
-            _ => {
-                dbg!(op);
-                panic!();
-            }
-        }
+        text.push_str("pop %rcx\nand %ecx, %eax\n");
     }
 }
 
@@ -171,18 +163,10 @@ pub fn generate_bit_xor_expr(
     // <bit-xor-expr> ::= <bit-and-expr> { "^" <bit-and-expr> }
     generate_bit_and_expr(text, &bit_xor_expr.bit_and_expr, stack_info);
 
-    for (op, expr) in bit_xor_expr.additional.iter() {
+    for expr in bit_xor_expr.additional.iter() {
         text.push_str("push %rax\n");
         generate_bit_and_expr(text, expr, stack_info);
-        text.push_str("pop %rcx\n");
-
-        match op {
-            TokenType::BitXOr => text.push_str("xor %ecx, %eax\n"),
-            _ => {
-                dbg!(op);
-                panic!();
-            }
-        }
+        text.push_str("pop %rcx\nxor %ecx, %eax\n");
     }
 }
 
@@ -194,18 +178,10 @@ pub fn generate_bit_or_expr(
     // <bit-or-expr> ::= <bit-xor-expr> { "|" <bit-xor-expr> }
     generate_bit_xor_expr(text, &bit_or_expr.bit_xor_expr, stack_info);
 
-    for (op, expr) in bit_or_expr.additional.iter() {
+    for expr in bit_or_expr.additional.iter() {
         text.push_str("push %rax\n");
         generate_bit_xor_expr(text, expr, stack_info);
-        text.push_str("pop %rcx\n");
-
-        match op {
-            TokenType::BitOr => text.push_str("or %ecx, %eax\n"),
-            _ => {
-                dbg!(op);
-                panic!();
-            }
-        }
+        text.push_str("pop %rcx\nor %ecx, %eax\n");
     }
 }
 
@@ -217,28 +193,18 @@ pub fn generate_log_and_expr(
     // <log-and-expr> ::= <bit-or-expr> { "&&" <bit-or-expr> }
     generate_bit_or_expr(text, &log_and_expr.bit_or_expr, stack_info);
 
-    for (op, expr) in log_and_expr.additional.iter() {
-        match op {
-            TokenType::And => {
-                let c = stack_info.counter;
-                text.push_str(
-                    format!(
-                        "cmpl $0, %eax\njne _clause{}\njmp _end{}\n_clause{}:\n",
-                        c, c, c
-                    )
-                    .as_str(),
-                );
-                generate_bit_or_expr(text, expr, stack_info);
-                text.push_str(
-                    format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str(),
-                );
-                stack_info.counter += 1;
-            }
-            _ => {
-                dbg!(op);
-                panic!();
-            }
-        }
+    for expr in log_and_expr.additional.iter() {
+        let c = stack_info.counter;
+        text.push_str(
+            format!(
+                "cmpl $0, %eax\njne _clause{}\njmp _end{}\n_clause{}:\n",
+                c, c, c
+            )
+            .as_str(),
+        );
+        generate_bit_or_expr(text, expr, stack_info);
+        text.push_str(format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str());
+        stack_info.counter += 1;
     }
 }
 
@@ -250,65 +216,57 @@ pub fn generate_log_or_expr(
     // <logical-or-expr> ::= <logical-and-expr> { "||" <logical-and-expr> }
     generate_log_and_expr(text, &log_or_expr.log_and_expr, stack_info);
 
-    for (op, expr) in log_or_expr.additional.iter() {
-        match op {
-            TokenType::Or => {
-                let c = stack_info.counter;
-                text.push_str(
-                    format!(
-                        "cmpl $0, %eax\nje _clause{}\nmovl $1, %eax\njmp _end{}\n_clause{}:\n",
-                        c, c, c
-                    )
-                    .as_str(),
-                );
-                generate_log_and_expr(text, expr, stack_info);
-                text.push_str(
-                    format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str(),
-                );
-                stack_info.counter += 1;
-            }
-            _ => {
-                dbg!(op);
-                panic!();
-            }
-        }
+    for expr in log_or_expr.additional.iter() {
+        let c = stack_info.counter;
+        text.push_str(
+            format!(
+                "cmpl $0, %eax\nje _clause{}\nmovl $1, %eax\njmp _end{}\n_clause{}:\n",
+                c, c, c
+            )
+            .as_str(),
+        );
+        generate_log_and_expr(text, expr, stack_info);
+        text.push_str(format!("cmpl $0, %eax\nmovl $0, %eax\nsetne %al\n_end{}:\n", c).as_str());
+        stack_info.counter += 1;
+    }
+}
+
+pub fn generate_conditional_expr(
+    text: &mut String,
+    conditional_expr: &ConditionalExpr,
+    stack_info: &mut StackInfo,
+) {
+    // <conditional-expr> ::= <logical-or-expr> { "?" <expr> ":" <conditional-expr> }
+    generate_log_or_expr(text, &conditional_expr.log_or_expr, stack_info);
+
+    if let Some((a, b)) = &conditional_expr.additional {
+        let c = stack_info.counter;
+        text.push_str(format!("cmpl $0, %eax\nje _e{}\n", c).as_str());
+        generate_expr(text, a, stack_info);
+        text.push_str(format!("jmp _post_cond{}\n_e{}:\n", c, c).as_str());
+        generate_conditional_expr(text, b, stack_info);
+        text.push_str(format!("_post_cond{}:\n", c).as_str());
+        stack_info.counter += 1;
     }
 }
 
 pub fn generate_expr(text: &mut String, expr: &Expression, stack_info: &mut StackInfo) {
+    // <expr> ::= <id> "=" <expr> | <conditional-expr>
     match expr {
         Expression::Assign(name, inner_expr) => {
             generate_expr(text, inner_expr, stack_info);
             let offset = stack_info.var_map.get(name).unwrap();
-            text.push_str(format!("movl %eax, {}(%ebp)", offset).as_str());
+            text.push_str(format!("movl %eax, {}(%ebp)\n", offset).as_str());
         }
-        Expression::Else(log_or_expr) => {
-            generate_log_or_expr(text, log_or_expr, stack_info);
+        Expression::Conditional(conditional_expr) => {
+            generate_conditional_expr(text, conditional_expr, stack_info);
         }
     }
 }
 
 pub fn generate_statement(text: &mut String, statement: &Statement, stack_info: &mut StackInfo) {
-    // <function> :: "int" <id> "(" ")" "{" { <statement> } "}"
+    // <function> :: "int" <id> "(" ")" "{" { <block-item> } "}"
     match statement {
-        Statement::Declare(name, opt_expr) => {
-            if let Some(_) = stack_info.var_map.get(name) {
-                panic!("Variable \"{}\" already declared in this scope.", name);
-            }
-
-            if let Some(inner_expr) = opt_expr {
-                generate_expr(text, inner_expr, stack_info);
-            } else {
-                // set to 0
-                text.push_str("movl $0, %eax\n");
-            }
-
-            text.push_str("pushl %rax\n");
-            stack_info
-                .var_map
-                .insert(name.to_string(), stack_info.stack_index);
-            stack_info.stack_index -= 8;
-        }
         Statement::Expr(expr) => {
             generate_expr(text, expr, stack_info);
         }
@@ -316,8 +274,52 @@ pub fn generate_statement(text: &mut String, statement: &Statement, stack_info: 
             generate_expr(text, expr, stack_info);
             text.push_str("ret\n\n");
         }
+        Statement::If(expr, if_state, else_state) => {
+            generate_expr(text, expr, stack_info);
+            let c = stack_info.counter;
+            text.push_str(format!("cmpl $0, %eax\nje _e{}\n", c).as_str());
+            generate_statement(text, if_state, stack_info);
+
+            match else_state {
+                Some(s) => {
+                    text.push_str(format!("jmp _post_cond{}\n_e{}:\n", c, c).as_str());
+                    generate_statement(text, s, stack_info);
+                    text.push_str(format!("_post_cond{}:\n", c).as_str());
+                }
+                None => {
+                    text.push_str(format!("e_{}:", c).as_str());
+                }
+            }
+            stack_info.counter += 1;
+        }
     }
     text.push_str("movl %ebp, %esp\npop %rbp\nret\n\n");
+}
+
+pub fn generate_declaration(
+    text: &mut String,
+    declaration: &Declaration,
+    stack_info: &mut StackInfo,
+) {
+    // <declaration>> ::= "int" <id> [ = <expr> ] ";"
+    let name = declaration.identifier.as_str();
+
+    if let Some(_) = stack_info.var_map.get(name) {
+        panic!("Variable \"{}\" already declared in this scope.", name);
+    }
+
+    if let Some(inner_expr) = &declaration.expr {
+        generate_expr(text, &inner_expr, stack_info);
+    } else {
+        // set to 0
+        text.push_str("movl $0, %eax\n");
+    }
+
+    text.push_str("push %rax\n");
+    stack_info
+        .var_map
+        .insert(name.to_string(), stack_info.stack_index);
+    stack_info.stack_index -= 8;
 }
 
 pub fn generate(prog: Program) -> String {
@@ -334,12 +336,16 @@ pub fn generate(prog: Program) -> String {
 
         let mut has_ret: bool = false;
 
-        for statement in func.statements.iter() {
-            if let Statement::Return(_) = statement {
-                has_ret = true;
+        for block in func.blocks.iter() {
+            match block {
+                BlockItem::Statement(s) => {
+                    if let Statement::Return(_) = s {
+                        has_ret = true;
+                    }
+                    generate_statement(&mut text, s, &mut stack_info);
+                }
+                BlockItem::Declaration(d) => generate_declaration(&mut text, d, &mut stack_info),
             }
-
-            generate_statement(&mut text, statement, &mut stack_info);
         }
 
         if !has_ret {
